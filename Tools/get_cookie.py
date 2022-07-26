@@ -2,22 +2,19 @@ import random
 import time
 import string
 import hashlib
-
+from database import get_private_cookie,delete_cookie,delete_cookie_cache,update_cookie_cache
+from nonebot import logger
 
 async def get_cookie():
     return
 
-'''
-    md5加密
-'''
+'''md5加密'''
 def md5(content: str) -> str:
     md5 = hashlib.md5()
     md5.update(content.encode())
     return md5.hexdigest()
 
-'''
-    生成随机字符串
-'''
+'''生成随机字符串'''
 def random_hex(length):
     result = hex(random.randint(0, 16 ** length)).replace('0x', '').upper()
     if len(result) < length:
@@ -51,3 +48,25 @@ def get_sign_headers(cookie):
         'x-rpc-app_version': '2.3.0'
     }
     return headers
+
+''' 检查数据返回状态，
+    10001为ck过期了，
+    10101为达到每日30次上线了
+'''
+async def check_retcode(data, cookie, uid):
+    if data['retcode'] == 10001 or data['retcode'] == -100:
+        await delete_cookie(cookie['cookie'], cookie['type'])
+        # await send_cookie_delete_msg(cookie)
+        return False
+    elif data['retcode'] == 10101:
+        if cookie['type'] == 'public':
+            logger.info(f'{cookie["no"]}号公共cookie达到了每日30次查询上限')
+            # await limit_public_cookie(cookie['cookie'])
+            await delete_cookie_cache(cookie['cookie'], key='cookie')
+        elif cookie['type'] == 'private':
+            logger.info(f'用户{cookie["user_id"]}的uid{cookie["uid"]}私人cookie达到了每日30次查询上限')
+            return '私人cookie达到了每日30次查询上限'
+        return False
+    else:
+        await update_cookie_cache(cookie['cookie'], uid, 'uid')
+        return True
