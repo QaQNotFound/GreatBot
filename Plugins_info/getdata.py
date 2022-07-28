@@ -1,14 +1,16 @@
+import datetime
+
 from ..Tools import asynchttp
-from ..Tools.get_cookie import get_cookie,get_sign_headers,check_retcode
+from ..Tools.decorator import cache
+from ..Tools.get_cookie import get_own_cookie, get_sign_headers, check_retcode, update_cookie_cache, get_headers
 
 
 # 获取签到信息
 async def get_daily_sign_info(uid):
-
-    server_id = 'cn_qd01' if uid[0]=='5' else 'cn_gf01'
+    server_id = 'cn_qd01' if uid[0] == '5' else 'cn_gf01'
 
     url = 'https://api-takumi.mihoyo.com/event/bbs_sign_reward/info'
-    cookie = await get_cookie()
+    cookie = await get_own_cookie()
 
     if not cookie:
         return f'你的uid{uid}没有绑定对应cookie,必须先绑定cookie才能签到哦'
@@ -51,7 +53,7 @@ async def sign(uid):
     server_id = 'cn_qd01' if uid[0]=='5' else 'cn_gf01'
 
     url = 'https://api-takumi.mihoyo.com/event/bbs_sign_reward/sign'
-    cookie = await get_cookie()
+    cookie = await get_own_cookie()
 
     if not cookie:
         return f'你的uid{uid}没有绑定对应cookie,必须先绑定cookie才能签到哦'
@@ -95,3 +97,25 @@ async def get_sign_list():
     resp = await asynchttp.get(url=url, headers=headers, params=params)
     data = resp.json()
     return data
+
+
+@cache(ttl=datetime.timedelta(hours=1))
+async def get_monthinfo_data(uid, month, use_cache=True):
+    server_id = "cn_qd01" if uid[0] == '5' else "cn_gf01"
+    url = 'https://hk4e-api.mihoyo.com/event/ys_ledger/monthInfo'
+    cookie = await get_own_cookie(uid, action='查询每月札记')
+    if not cookie:
+        return f'你的uid{uid}没有绑定对应的cookie,使用ysb绑定才能用每月札记哦!'
+    await update_cookie_cache(cookie['cookie'], uid, 'uid')
+    headers = get_headers(q=f'month={month}&bind_uid={uid}&bind_region={server_id}', cookie=cookie['cookie'])
+    params = {
+        "month": int(month),
+        "bind_uid": uid,
+        "bind_region": server_id
+    }
+    resp = await asynchttp.get(url=url, headers=headers, params=params)
+    data = resp.json()
+    if await check_retcode(data, cookie, uid):
+        return data
+    else:
+        return f'你的uid{uid}的cookie已过期,需要重新绑定哦!'

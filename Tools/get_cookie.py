@@ -1,26 +1,74 @@
-import random
-import time
-import string
 import hashlib
-from database import get_private_cookie,delete_cookie,delete_cookie_cache,update_cookie_cache
+import json
+import random
+import string
+import time
+
 from nonebot import logger
 
-async def get_cookie():
-    return
+from database import get_private_cookie, delete_cookie, delete_cookie_cache, update_cookie_cache
+
+
+async def get_own_cookie(uid='', mys_id='', action=''):
+    if uid:
+        cookie = (await get_private_cookie(uid, 'uid'))
+    elif mys_id:
+        cookie = (await get_private_cookie(mys_id, 'mys_id'))
+    else:
+        cookie = None
+    if not cookie:
+        return None
+    else:
+        cookie = cookie[0]
+        logger.info(f'---派蒙调用用户{cookie[0]}的uid{cookie[2]}私人cookie执行{action}操作---')
+        return {'type': 'private', 'user_id': cookie[0], 'cookie': cookie[1], 'uid': cookie[2], 'mys_id': cookie[3]}
+
 
 '''md5加密'''
+
+
 def md5(content: str) -> str:
     md5 = hashlib.md5()
     md5.update(content.encode())
     return md5.hexdigest()
 
+
 '''生成随机字符串'''
+
+
 def random_hex(length):
     result = hex(random.randint(0, 16 ** length)).replace('0x', '').upper()
     if len(result) < length:
         result = '0' * (length - len(result)) + result
     return result
 
+
+# 米游社headers的ds_token，对应版本2.11.1
+def get_ds(q="", b=None) -> str:
+    if b:
+        br = json.dumps(b)
+    else:
+        br = ""
+    s = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs"
+    t = str(int(time()))
+    r = str(random.randint(100000, 200000))
+    c = md5("salt=" + s + "&t=" + t + "&r=" + r + "&b=" + br + "&q=" + q)
+    return f"{t},{r},{c}"
+
+
+# 米游社爬虫headers
+def get_headers(cookie, q='', b=None):
+    headers = {
+        'DS': get_ds(q, b),
+        'Origin': 'https://webstatic.mihoyo.com',
+        'Cookie': cookie,
+        'x-rpc-app_version': "2.11.1",
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS '
+                      'X) AppleWebKit/605.1.15 (KHTML, like Gecko) miHoYoBBS/2.11.1',
+        'x-rpc-client_type': '5',
+        'Referer': 'https://webstatic.mihoyo.com/'
+    }
+    return headers
 
 
 def get_oldversion_ds() -> str:
